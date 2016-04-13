@@ -55,11 +55,15 @@ function listInventory(){
 }
 
 function listPL(){
+    let total = 0;
+    
     console.log('Date\t\tSYM\tPL\t'.black.bgWhite);
     for(let i = 0; i < trades.pl.length; i++){
         let date = trades.pl[i].date;
         let sym = trades.pl[i].sym;
         let bal = trades.pl[i].bal.toFixed(2);
+        total += trades.pl[i].bal;
+        
         if(bal < 0){
             bal = '$'.red + bal.toString().red;
         }
@@ -68,6 +72,8 @@ function listPL(){
         }
         console.log(`${date}\t${sym}\t${bal}`);
     }
+    console.log('--------------------------------');
+    console.log('Total: \t\t\t'.black.bgWhite + '$'.black.bgWhite + total.toFixed(2).toString().black.bgWhite);
 }
 
 function addToInventory(sym,qty,price){
