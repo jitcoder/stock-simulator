@@ -117,10 +117,10 @@ function removeFromInventory(sym,qty,price){
     return false;
 }
 
-function getPL(sym){
+function getInventory(sym){
     for(let i = 0; i < trades.inventory.length; i++){
         if(trades.inventory[i].sym === sym){
-            return trades.inventory[i].cost * trades.inventory[i].qty;
+            return trades.inventory[i];
         }
     }
 }
@@ -147,10 +147,10 @@ function sellAction(sym,price,qty){
     price = Number.parseFloat(price);
     qty = Number.parseInt(qty);
     sym = sym.toUpperCase();
-    
-    let pl = getPL(sym);
+    let inv = getInventory(sym);
+    let pl = inv.cost * inv.qty;
     if(removeFromInventory(sym,qty,price)){
-        trades.pl.push({date:new Date().yyyymmdd(),sym:sym,bal:price*qty - pl});
+        trades.pl.push({date:new Date().yyyymmdd(),sym:sym,bal:price*qty - pl - 5});
         trades.actions.push({date:new Date().yyyymmdd(),sym:sym,price:price,qty:qty,action:'SELL'});
         trades.balance += price * qty;
         let bal = (price*qty - pl).toFixed(2);
@@ -166,6 +166,46 @@ function sellAction(sym,price,qty){
         console.log('PL     : '.black.bgWhite + bal + '\t\t\t'.black.bgWhite);
         console.log('Balance: '.black.bgWhite + '$'.blue.bgWhite + trades.balance.toFixed(2).toString().blue.bgWhite + '\t\t\t'.black.bgWhite);
     }
+}
+
+function simulate(sym,csvPath){
+    let ticks = fs.readFileSync(csvPath).toString().split('\r\n');
+    let now = new Date();
+    let inv = getInventory(sym);
+    let stopLoss = inv.cost * 0.95;
+    let stopLossHigh = inv.cost;
+    let exitPrice = inv.cost * 1.2;
+    
+    console.log(sym.black.bgWhite + '\t'.bgWhite + 'Stop Loss: $'.black.bgWhite + stopLoss.toFixed(2).toString().black.bgWhite + '\t'.black.bgWhite + 'Target: $'.black.bgWhite + exitPrice.toFixed(2).black.bgWhite);
+    for(let i = 1; i < ticks.length; i++){
+        let columns = ticks[i].split(',');
+        
+        let dateSegments = columns[0].split(' ')[0].split('/');
+        if(Number.parseInt(dateSegments[0]) === now.getMonth()+1 && Number.parseInt(dateSegments[1]) === now.getDate()){
+            let high = Number.parseFloat(columns[2]);
+            let low = Number.parseFloat(columns[3]);
+            
+            if(low <= stopLoss){
+                console.log(`[${columns[0]}]\t` + 'Stop loss triggered at $' + stopLoss.toFixed(2).toString());
+                console.log('diff\t\t\t\t\t$'.black.bgWhite + (stopLoss - inv.cost).toFixed(2).toString().black.bgWhite);
+                return;
+            }
+            
+            if(high >= exitPrice){
+                console.log(`[${columns[0]}]\t` + 'Target price found, exiting trade at $' + exitPrice.toFixed(2).toString());
+                console.log('diff\t\t\t\t\t$'.black.bgWhite + (exitPrice - inv.cost).toFixed(2).toString().black.bgWhite);
+                return;
+            }
+            
+            if(high > stopLossHigh){
+                stopLossHigh = high;
+                stopLoss = high * 0.80 > stopLoss ? high * 0.80 : stopLoss;
+                console.log(`[${columns[0]}]\t` + 'New high found at $' + high.toFixed(2).toString());
+                console.log(`[${columns[0]}]\t` + 'New stop loss set at $' + stopLoss.toFixed(2).toString());
+            }
+        }
+    }
+    console.log('No exit strategy triggered');
 }
 
 if(cmd === 'buy'){
@@ -194,6 +234,10 @@ else if(cmd === 'list'){
 }
 else if(cmd === "bal" || cmd === "balance"){
     console.log('Balance: '.black.bgWhite + '$'.blue.bgWhite + trades.balance.toFixed(2).toString().blue.bgWhite);
+}
+else if(cmd === 'simulate'){
+    //"C:\Users\Sameer\Documents\vrtb.txt"
+    simulate(process.argv[3].toUpperCase(), process.argv[4]);
 }
 else if(cmd === 'backup'){
     fs.writeFileSync('./trades.backup',JSON.stringify(trades));
